@@ -603,6 +603,49 @@ form.addEventListener('submit', (e) => {
   data.advisory_other = fd.get('advisory_other') === 'yes';
   const result = calculateEstimate(data);
 
+  // ── Google Sheets webhook ──────────────────────────────────────────────────
+  const SHEET_URL = 'https://script.google.com/macros/s/AKfycby3WTNHSphNeqvrSBYyFilCvP2hYRV8YCCpSgLOCThC6PheZ2hflDtLUTUmgOxBCoPT/exec';
+  const advisoryList = [
+    data.advisory_budgeting   ? 'Budgeting'       : null,
+    data.advisory_forecasting ? 'Forecasting'     : null,
+    data.advisory_kpi         ? 'KPI dashboarding': null,
+    data.advisory_ma          ? 'M&A'             : null,
+    data.advisory_exit        ? 'Exit planning'   : null,
+    data.advisory_capital     ? 'Capital strategy': null,
+    data.advisory_other       ? 'Other CFO advisory': null,
+  ].filter(Boolean).join(', ') || 'None';
+
+  const monthlyLow  = Math.max(350, result.monthly - 75);
+  const monthlyHigh = Math.max(result.monthly + 75, monthlyLow + 150);
+
+  const payload = {
+    timestamp:       new Date().toISOString(),
+    email:           data.email,
+    companyName:     data.companyName,
+    industry:        data.industry === 'other' ? (data.otherIndustryName || 'Other') : data.industry,
+    revenue:         data.revenue,
+    software:        data.software === 'other' ? (data.otherSoftwareName || 'Other') : data.software,
+    accountCount:    data.accountCount,
+    inventory:       data.inventory,
+    jobCosting:      data.jobCosting || 'n/a',
+    payroll:         data.payroll,
+    billpay:         data.billpay,
+    advisory:        advisoryList,
+    monthsBehind:    data.monthsBehind,
+    monthlyLow:      monthlyLow,
+    monthlyHigh:     monthlyHigh,
+    cleanupEstimate: result.cleanup,
+    complexityFlags: result.flags.join(', ') || 'None',
+  };
+
+  fetch(SHEET_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    mode: 'no-cors',
+  }).catch(err => console.warn('Sheet webhook error:', err));
+  // ──────────────────────────────────────────────────────────────────────────
+
   document.getElementById('monthlyRange').textContent = `${money(result.low)} - ${money(result.high)}`;
   document.getElementById('cleanupFee').textContent = result.cleanup > 0 ? money(result.cleanup) : 'None implied';
 
